@@ -16,7 +16,6 @@ sys.path.insert(0, parent_dir)
 # Now use absolute imports
 from provider.edcmanager import (
     EdcManager, 
-    CreateAssetDto, 
     CreateAccessPolicyDto, 
     CreateUsagePolicyDto,
     CreateContractDefinitionDto
@@ -45,37 +44,77 @@ def setup_logging():
     logger.info(f"Logging configured to level: {log_level}")
 
 
-def create_aasx_asset(edc_manager: EdcManager) -> dict:
+def create_aasx_asset(edc_manager: EdcManager, asset_id: str = None, asset_url: str = None, asset_description: str = None, asset_type: str = None) -> dict:
     """
-    Creates an AASX asset in the EDC using configuration from provider.env.
+    Creates an AASX asset in the EDC using configuration from provider.env or CLI parameters.
+    
+    Args:
+        edc_manager: The EDC manager instance
+        asset_id: Optional asset ID to override settings.ASSET_ID
+        asset_url: Optional asset URL to override settings.ASSET_URL
+        asset_description: Optional asset description to override settings.ASSET_DESCRIPTION
+        asset_type: Optional asset type ("data", "model", or "service"), defaults to "data"
     
     Returns:
         Dictionary with asset creation results or error information.
     """
-    logger.info(f"Creating AASX asset: {settings.ASSET_ID}")
-    logger.info(f"Asset URL: {settings.ASSET_URL}")
-    logger.info(f"Asset Description: {settings.ASSET_DESCRIPTION}")
+    # Use CLI parameters if provided, otherwise fall back to settings
+    effective_asset_id = asset_id or settings.ASSET_ID
+    effective_asset_url = asset_url or settings.ASSET_URL
+    effective_asset_description = asset_description or settings.ASSET_DESCRIPTION
+    effective_asset_type = asset_type or "data"  # Default to "data" if not specified
     
-    # Use the new createAASXAsset method instead of createAsset
-    asset_response = edc_manager.createAASXAsset()
+    # Validate asset type
+    valid_asset_types = ["data", "model", "service"]
+    if effective_asset_type not in valid_asset_types:
+        logger.error(f"Invalid asset_type '{effective_asset_type}'. Must be one of: {valid_asset_types}")
+        return {"error": f"Invalid asset_type '{effective_asset_type}'", "asset_id": effective_asset_id}
     
-    if not asset_response:
-        return {"error": "Failed to create asset", "asset_id": settings.ASSET_ID}
+    logger.info(f"Creating AASX asset: {effective_asset_id}")
+    logger.info(f"Asset URL: {effective_asset_url}")
+    logger.info(f"Asset Description: {effective_asset_description}")
+    logger.info(f"Asset Type: {effective_asset_type}")
     
-    if asset_response.get("status") == "conflict":
-        logger.warning(f"Asset {settings.ASSET_ID} already exists")
-        return {"status": "already_exists", "asset_id": settings.ASSET_ID}
+    # Temporarily override settings for the asset creation
+    original_asset_id = settings.ASSET_ID
+    original_asset_url = settings.ASSET_URL
+    original_asset_description = settings.ASSET_DESCRIPTION
     
-    if asset_response.get("@id"):
-        logger.info(f"Successfully created asset: {settings.ASSET_ID}")
-        return {"status": "created", "asset_id": settings.ASSET_ID, "response": asset_response}
+    try:
+        settings.ASSET_ID = effective_asset_id
+        settings.ASSET_URL = effective_asset_url
+        settings.ASSET_DESCRIPTION = effective_asset_description
+        
+        # Use the createAASXAsset method with asset type
+        asset_response = edc_manager.createAASXAsset(asset_type=effective_asset_type)
+        
+        if not asset_response:
+            return {"error": "Failed to create asset", "asset_id": effective_asset_id}
+        
+        if asset_response.get("status") == "conflict":
+            logger.warning(f"Asset {effective_asset_id} already exists")
+            return {"status": "already_exists", "asset_id": effective_asset_id}
+        
+        if asset_response.get("@id"):
+            logger.info(f"Successfully created asset: {effective_asset_id}")
+            return {"status": "created", "asset_id": effective_asset_id, "response": asset_response}
+        
+        return {"error": "Unexpected response", "asset_id": effective_asset_id, "response": asset_response}
     
-    return {"error": "Unexpected response", "asset_id": settings.ASSET_ID, "response": asset_response}
+    finally:
+        # Restore original settings
+        settings.ASSET_ID = original_asset_id
+        settings.ASSET_URL = original_asset_url
+        settings.ASSET_DESCRIPTION = original_asset_description
 
 
-def create_policies_and_contract(edc_manager: EdcManager) -> dict:
+def create_policies_and_contract(edc_manager: EdcManager, asset_id: str = None) -> dict:
     """
     Creates access policy, usage policy, and contract definition for the asset.
+    
+    Args:
+        edc_manager: The EDC manager instance
+        asset_id: Optional asset ID to use for policy creation
     
     Returns:
         Dictionary with policy and contract creation results.
@@ -84,8 +123,11 @@ def create_policies_and_contract(edc_manager: EdcManager) -> dict:
         logger.warning("CONSUMER_BPN not set - skipping policy and contract creation")
         return {"warning": "CONSUMER_BPN not configured"}
     
+    # Use provided asset_id or fall back to settings
+    effective_asset_id = asset_id or settings.ASSET_ID
+    
     # Generate unique IDs
-    asset_prefix = settings.ASSET_ID[:18] if settings.ASSET_ID else "aasx"
+    asset_prefix = effective_asset_id[:18] if effective_asset_id else "aasx"
     unique_suffix = str(uuid.uuid4())[:8]
     
     access_policy_id = f"ap-{asset_prefix}-{unique_suffix}"
@@ -123,7 +165,7 @@ def create_policies_and_contract(edc_manager: EdcManager) -> dict:
             contractDefinitionId=contract_definition_id,
             accessPolicyId=access_policy_id,
             usagePolicyId=usage_policy_id,
-            assetId=settings.ASSET_ID
+            assetId=effective_asset_id
         )
         contract_response = edc_manager.createContractDefinition(contract_dto)
         results["contract_definition_status"] = "success" if contract_response else "failed"
@@ -133,12 +175,16 @@ def create_policies_and_contract(edc_manager: EdcManager) -> dict:
     return results
 
 
-def main(env_file: str = None):
+def main(env_file: str = None, asset_id: str = None, asset_url: str = None, asset_description: str = None, asset_type: str = None):
     """
     Main entry point for AASX asset registration.
     
     Args:
         env_file: Optional path to environment file. Defaults to provider.env in script directory.
+        asset_id: Optional asset ID to override settings.ASSET_ID
+        asset_url: Optional asset URL to override settings.ASSET_URL
+        asset_description: Optional asset description to override settings.ASSET_DESCRIPTION
+        asset_type: Optional asset type ("data", "model", or "service"), defaults to "data"
     """
     
     # Handle environment file
@@ -166,10 +212,29 @@ def main(env_file: str = None):
     setup_logging()
     logger.info(f"Successfully loaded environment from: {env_file_path}")
     
+    # Determine effective values (CLI parameters override settings)
+    effective_asset_id = asset_id or settings.ASSET_ID
+    effective_asset_url = asset_url or settings.ASSET_URL
+    effective_asset_description = asset_description or settings.ASSET_DESCRIPTION
+    effective_asset_type = asset_type or "data"
+    
     # Validate required settings for AASX asset
-    if not all([settings.ASSET_ID, settings.ASSET_URL, settings.ASSET_DESCRIPTION]):
+    if not all([effective_asset_id, effective_asset_url, effective_asset_description]):
         logger.error("Missing required asset configuration: ASSET_ID, ASSET_URL, or ASSET_DESCRIPTION")
+        logger.error("Please provide these via CLI arguments or in the environment file")
         return False
+    
+    # Log what values are being used
+    if asset_id:
+        logger.info(f"Using ASSET_ID from CLI: {effective_asset_id}")
+    if asset_url:
+        logger.info(f"Using ASSET_URL from CLI: {effective_asset_url}")
+    if asset_description:
+        logger.info(f"Using ASSET_DESCRIPTION from CLI: {effective_asset_description}")
+    if asset_type:
+        logger.info(f"Using ASSET_TYPE from CLI: {effective_asset_type}")
+    else:
+        logger.info(f"Using default ASSET_TYPE: {effective_asset_type}")
     
     # Initialize EDC Manager
     try:
@@ -181,7 +246,7 @@ def main(env_file: str = None):
     
     # Create asset
     logger.info("=== Creating AASX Asset ===")
-    asset_result = create_aasx_asset(edc_manager)
+    asset_result = create_aasx_asset(edc_manager, effective_asset_id, effective_asset_url, effective_asset_description, effective_asset_type)
     
     if asset_result.get("error"):
         logger.error(f"Asset creation failed: {asset_result}")
@@ -191,12 +256,13 @@ def main(env_file: str = None):
     
     # Create policies and contract definition
     logger.info("=== Creating Policies and Contract Definition ===")
-    policy_result = create_policies_and_contract(edc_manager)
+    policy_result = create_policies_and_contract(edc_manager, effective_asset_id)
     logger.info(f"Policy and contract result: {policy_result}")
     
     logger.info("=== AASX Asset Registration Complete ===")
-    logger.info(f"Asset ID: {settings.ASSET_ID}")
-    logger.info(f"Asset URL: {settings.ASSET_URL}")
+    logger.info(f"Asset ID: {effective_asset_id}")
+    logger.info(f"Asset URL: {effective_asset_url}")
+    logger.info(f"Asset Type: {effective_asset_type}")
     
     return True
 
@@ -208,9 +274,37 @@ if __name__ == "__main__":
         type=str,
         help="Path to environment file (defaults to provider.env in script directory)"
     )
+    parser.add_argument(
+        "--asset-id",
+        type=str,
+        help="Asset ID (overrides ASSET_ID from env file)"
+    )
+    parser.add_argument(
+        "--asset-url",
+        type=str,
+        help="Asset URL (overrides ASSET_URL from env file)"
+    )
+    parser.add_argument(
+        "--asset-description",
+        type=str,
+        help="Asset description (overrides ASSET_DESCRIPTION from env file)"
+    )
+    parser.add_argument(
+        "--asset-type",
+        type=str,
+        choices=["data", "model", "service"],
+        default="data",
+        help="Asset type: data, model, or service (default: data)"
+    )
     
     args = parser.parse_args()
-    success = main(env_file=args.env_file)
+    success = main(
+        env_file=args.env_file,
+        asset_id=args.asset_id,
+        asset_url=args.asset_url,
+        asset_description=args.asset_description,
+        asset_type=args.asset_type
+    )
     
     if not success:
         exit(1) 

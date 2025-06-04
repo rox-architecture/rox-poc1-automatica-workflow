@@ -176,12 +176,12 @@ class EdcManager:
             operation_name=f"Create Asset {createAssetDto.assetId}",
         )
 
-    def createAASXAsset(self):
+    def createAASXAsset(self, asset_type: str = "data"):
         """Creates a new AASX asset definition in the EDC, pointing to an HTTP data source."""
         url = self.DataManagementApiEndpoint + "/v3/assets"
 
         self.logger.info(
-            f"Registering AASX asset: {settings.ASSET_ID} with URL: {settings.ASSET_URL}"
+            f"Registering AASX asset: {settings.ASSET_ID} with URL: {settings.ASSET_URL}, Type: {asset_type}"
         )
 
         # Validate required settings for AASX asset
@@ -191,13 +191,22 @@ class EdcManager:
             )
             return None
 
+        # Validate asset type
+        valid_asset_types = ["data", "model", "service"]
+        if asset_type not in valid_asset_types:
+            self.logger.error(
+                f"Invalid asset_type '{asset_type}'. Must be one of: {valid_asset_types}"
+            )
+            return None
+
         payload_aasx = {
             "@context": {
                 "edc": "https://w3id.org/edc/v0.0.1/ns/",
                 "dcat": "https://www.w3.org/ns/dcat/",
                 "odrl": "http://www.w3.org/ns/odrl/2/",
                 "dspace": "https://w3id.org/dspace/v0.8/",
-                "aas": "https://admin-shell.io/aas/3/0/"
+                "aas": "https://admin-shell.io/aas/3/0/",
+                "rox": "https://rox-architecture.org/ns/"
             },
             "@id": settings.ASSET_ID,
             "@type": "edc:Asset",
@@ -207,6 +216,7 @@ class EdcManager:
                 "edc:type": "data.core.digitalTwin",
                 "edc:publisher": "IDTA",
                 "edc:description": settings.ASSET_DESCRIPTION,
+                "rox:assetType": asset_type,
                 "aas:modelType": "AssetAdministrationShell",
                 "aas:id": "https://example.com/ids/sm/2411_7160_0132_4523",
                 "aas:iShort": "SecondAAS",
