@@ -1,0 +1,12 @@
+[project]
+name = "rox-poc1-automatica-workflow"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "dotenv>=0.9.9",
+    "minio>=7.2.15",
+    "pydantic>=2.11.5",
+    "requests>=2.32.3",
+]
