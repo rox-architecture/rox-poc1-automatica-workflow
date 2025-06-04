@@ -597,7 +597,7 @@ class DataspaceClient:
             )
             return None
 
-    def access_data(self, data_address: dict) -> str | None:
+    def access_data(self, data_address: dict, asset_file_type: str = None) -> str | None:
         """
         Accesses and downloads data using the provider's endpoint and authorization
         details from the data address.
@@ -607,6 +607,8 @@ class DataspaceClient:
 
         Args:
             data_address: The data address dictionary obtained from `get_data_address`.
+            asset_file_type: Optional file type/extension for the asset (e.g., "aasx", "json", "xml").
+                           If provided, will be used as the file extension for the downloaded file.
 
         Returns:
             The local file path to the downloaded data if successful, else None.
@@ -651,6 +653,8 @@ class DataspaceClient:
         )
 
         if isinstance(response, requests.Response):  # Successful streaming response
+            # with open("temp_response.json", "w") as f:
+            #     json.dump(response.json(), f, indent=2)
             # Determine filename from Content-Disposition or use a default
             filename = "downloaded_data.dat"  # Default filename
             content_disposition = response.headers.get("Content-Disposition")
@@ -663,6 +667,18 @@ class DataspaceClient:
                     )  # Remove quotes
                     if filename_from_header:
                         filename = filename_from_header
+            
+            # If no filename from Content-Disposition and asset_file_type is provided, use it for extension
+            if filename == "downloaded_data.dat" and asset_file_type:
+                print(f'#'*100)
+                print(asset_file_type)
+                print(f'#'*100)
+                # Clean the file type to ensure it's a valid extension
+                clean_file_type = asset_file_type.strip().lower()
+                # Remove leading dot if present
+                if clean_file_type.startswith('.'):
+                    clean_file_type = clean_file_type[1:]
+                filename = f"downloaded_data.{clean_file_type}"
 
             # Sanitize filename to prevent path traversal or invalid characters
             # Keep only alphanumeric, dot, underscore, hyphen. Replace others with underscore.
@@ -671,7 +687,12 @@ class DataspaceClient:
                 for c in os.path.basename(filename)
             )
             if not safe_filename:  # Ensure there's a filename if all chars were invalid
-                safe_filename = f"download_{int(time.time())}.dat"
+                # Use asset_file_type for extension if available, otherwise default to .dat
+                extension = f".{asset_file_type.strip().lower()}" if asset_file_type else ".dat"
+                # Remove leading dot if already present in extension
+                if extension.startswith('..'):
+                    extension = extension[1:]
+                safe_filename = f"download_{int(time.time())}{extension}"
 
             file_path = os.path.join(settings.ARTIFACT_DOWNLOAD_PATH, safe_filename)
 

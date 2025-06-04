@@ -42,6 +42,7 @@ if __name__ == "__main__":
         asset_url = None
         asset_description = None
         asset_type = None
+        file_type = None
         
         if use_custom == 'y':
             print("Enter custom asset parameters (press Enter to use default value):")
@@ -65,6 +66,10 @@ if __name__ == "__main__":
             elif asset_type_input and asset_type_input not in ["data", "model", "service"]:
                 print(f"Invalid asset type '{asset_type_input}'. Using default 'data'.")
                 asset_type = "data"
+            
+            file_type_input = input("File Type (e.g., aasx, json, xml) (default: aasx): ").strip().lower()
+            if file_type_input:
+                file_type = file_type_input
         
         print("Running AASX Asset Registration...")
         success = run_aasx_main(
@@ -72,7 +77,8 @@ if __name__ == "__main__":
             asset_id=asset_id,
             asset_url=asset_url,
             asset_description=asset_description,
-            asset_type=asset_type
+            asset_type=asset_type,
+            file_type=file_type
         )
         
         if success:
@@ -91,6 +97,7 @@ if __name__ == "__main__":
         asset_url = None
         asset_description = None
         asset_type = None
+        file_type = None
         
         if use_custom == 'y':
             print("Enter custom asset parameters (press Enter to use default value):")
@@ -114,6 +121,10 @@ if __name__ == "__main__":
             elif asset_type_input and asset_type_input not in ["data", "model", "service"]:
                 print(f"Invalid asset type '{asset_type_input}'. Using default 'data'.")
                 asset_type = "data"
+            
+            file_type_input = input("File Type (e.g., aasx, json, xml) (default: aasx): ").strip().lower()
+            if file_type_input:
+                file_type = file_type_input
         
         # Step 1: Register AASX asset
         print("\n--- Step 1: Registering AASX Asset ---")
@@ -122,7 +133,8 @@ if __name__ == "__main__":
             asset_id=asset_id,
             asset_url=asset_url,
             asset_description=asset_description,
-            asset_type=asset_type
+            asset_type=asset_type,
+            file_type=file_type
         )
         
         if not provider_success:

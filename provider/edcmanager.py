@@ -176,12 +176,12 @@ class EdcManager:
             operation_name=f"Create Asset {createAssetDto.assetId}",
         )
 
-    def createAASXAsset(self, asset_type: str = "data"):
+    def createAASXAsset(self, asset_type: str = "data", file_type: str = "aasx"):
         """Creates a new AASX asset definition in the EDC, pointing to an HTTP data source."""
         url = self.DataManagementApiEndpoint + "/v3/assets"
 
         self.logger.info(
-            f"Registering AASX asset: {settings.ASSET_ID} with URL: {settings.ASSET_URL}, Type: {asset_type}"
+            f"Registering AASX asset: {settings.ASSET_ID} with URL: {settings.ASSET_URL}, Type: {asset_type}, File Type: {file_type}"
         )
 
         # Validate required settings for AASX asset
@@ -196,6 +196,13 @@ class EdcManager:
         if asset_type not in valid_asset_types:
             self.logger.error(
                 f"Invalid asset_type '{asset_type}'. Must be one of: {valid_asset_types}"
+            )
+            return None
+
+        # Validate file type (basic validation for common file extensions)
+        if not file_type or not isinstance(file_type, str):
+            self.logger.error(
+                f"Invalid file_type '{file_type}'. Must be a non-empty string."
             )
             return None
 
@@ -217,6 +224,7 @@ class EdcManager:
                 "edc:publisher": "IDTA",
                 "edc:description": settings.ASSET_DESCRIPTION,
                 "rox:assetType": asset_type,
+                "rox:assetFileType": file_type,
                 "aas:modelType": "AssetAdministrationShell",
                 "aas:id": "https://example.com/ids/sm/2411_7160_0132_4523",
                 "aas:iShort": "SecondAAS",

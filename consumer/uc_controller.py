@@ -17,29 +17,30 @@ class UcController:
         self, dataset_data, requested_asset_id=None
     ):
         """
-        Extracts asset ID and the first policy object from dataset data.
+        Extracts asset ID, the first policy object, and file type from dataset data.
 
         Args:
             dataset_data: A single dataset (dict) or a list of datasets.
             requested_asset_id: Optional ID to find a specific asset in a list.
 
         Returns:
-            A tuple (asset_id, full_policy_object) or (None, None) if not found.
+            A tuple (asset_id, full_policy_object, file_type) or (None, None, None) if not found.
         """
         asset_id = None
         full_policy_object = None
+        file_type = None
         target_dataset = None
 
         if not dataset_data:
             self.logger.error("Dataset data is empty or None.")
-            return None, None
+            return None, None, None
 
         # If dataset_data is a list, and we have a requested_asset_id, find it.
         # Or, if no requested_asset_id, take the first if it's a list.
         if isinstance(dataset_data, list):
             if not dataset_data:
                 self.logger.warning("Received an empty list of datasets.")
-                return None, None
+                return None, None, None
             if requested_asset_id:
                 found = False
                 for item in dataset_data:
@@ -51,7 +52,7 @@ class UcController:
                     self.logger.warning(
                         f"Specified asset '{requested_asset_id}' not found in the provided list of datasets."
                     )
-                    return None, None
+                    return None, None, None
             else:
                 target_dataset = dataset_data[
                     0
@@ -81,13 +82,22 @@ class UcController:
                     )  # Use client's formatter
                     self.logger.error(f"Problematic dataset_data:\n{formatted_data}")
                 except Exception as e:
-                    self.logger.error(
-                        f"Problematic dataset_data (raw, could not format):\n{str(dataset_data)[:settings.RESPONSE_PRINT_LIMIT]}"
-                    )
-            return None, None
+                        self.logger.error(
+                            f"Problematic dataset_data (raw, could not format):\n{str(dataset_data)[:settings.RESPONSE_PRINT_LIMIT]}"
+                        )
+            return None, None, None
 
         if target_dataset:
             asset_id = target_dataset.get("@id")
+            
+            # Extract file type from asset properties
+            edc_properties = target_dataset.get("edc:properties", {})
+            file_type = edc_properties.get("rox:assetFileType")
+            if file_type:
+                self.logger.info(f"Extracted file type '{file_type}' for asset '{asset_id}'")
+            else:
+                self.logger.debug(f"No file type (rox:assetFileType) found for asset '{asset_id}', will use default")
+            
             # EDC policy structure: dataset -> odrl:hasPolicy -> @id (policy_id)
             policies = target_dataset.get("odrl:hasPolicy")
             if policies:
@@ -120,12 +130,18 @@ class UcController:
             self.logger.error(
                 f"Failed to extract valid Asset ID or Full Policy Object. Asset: {asset_id}, Policy Object: {full_policy_object}"
             )
-            return None, None
-
+            return None, None, None
+        
+        file_type = target_dataset.get("https://rox-architecture.org/ns/assetFileType", {})
+        self.logger.info(f"#"*100)
+        self.logger.info(target_dataset)
+        self.logger.info('##########')
+        self.logger.info(file_type)
+        self.logger.info(f"#"*100)
         self.logger.info(
-            f"Successfully extracted Asset ID: {asset_id}, Policy Object ID: {full_policy_object.get('@id')}"
+            f"Successfully extracted Asset ID: {asset_id}, Policy Object ID: {full_policy_object.get('@id')}, File Type: {file_type or 'not specified'}"
         )
-        return asset_id, full_policy_object
+        return asset_id, full_policy_object, file_type
 
     def _list_and_select_asset_from_catalog(self, all_datasets):
         """Lists datasets and prompts user for selection."""
@@ -133,7 +149,7 @@ class UcController:
             self.logger.error(
                 "Cannot list assets: no datasets provided or not in list format."
             )
-            return None, None
+            return None, None, None
 
         self.logger.info("\nAvailable assets:")
         for i, dataset in enumerate(all_datasets):
@@ -159,7 +175,7 @@ class UcController:
                 self.logger.error("Invalid input. Please enter a number.")
             except KeyboardInterrupt:
                 self.logger.info("\nSelection cancelled by user.")
-                return None, None
+                return None, None, None
 
     def run_consumer_workflow(self, target_asset_id: str = None):
         """
@@ -185,6 +201,7 @@ class UcController:
         retrieved_data_path = None
         asset_id_to_process = None
         policy_object_to_process = None  # Changed from policy_id to full object
+        file_type_to_process = None
 
         if target_asset_id:
             self.logger.info(
@@ -194,7 +211,7 @@ class UcController:
                 asset_id_filter=target_asset_id
             )
             if catalog_data_for_specific_asset:
-                asset_id_to_process, policy_object_to_process = (
+                asset_id_to_process, policy_object_to_process, file_type_to_process = (
                     self._extract_asset_and_policy_from_dataset(
                         catalog_data_for_specific_asset,
                         requested_asset_id=target_asset_id,
@@ -229,7 +246,7 @@ class UcController:
             )
             all_datasets = self.client.request_catalog()  # No filter, gets all
             if all_datasets:
-                asset_id_to_process, policy_object_to_process = (
+                asset_id_to_process, policy_object_to_process, file_type_to_process = (
                     self._list_and_select_asset_from_catalog(all_datasets)
                 )
             else:
@@ -242,7 +259,7 @@ class UcController:
             return None
 
         self.logger.info(
-            f"Proceeding with Asset ID: {asset_id_to_process}, Policy Object ID: {policy_object_to_process.get('@id')}"
+            f"Proceeding with Asset ID: {asset_id_to_process}, Policy Object ID: {policy_object_to_process.get('@id')}, File Type: {file_type_to_process or 'not specified'}"
         )
 
         # Step 2: Initiate EDR (Contract Request)
@@ -300,7 +317,7 @@ class UcController:
 
         # Step 5: Access Data
         self.logger.info("Step 5: Accessing data using the EDR data address...")
-        retrieved_data_path = self.client.access_data(data_address)
+        retrieved_data_path = self.client.access_data(data_address, file_type_to_process)
         if not retrieved_data_path:
             self.logger.error("Failed to access/download data. Exiting workflow.")
             return None

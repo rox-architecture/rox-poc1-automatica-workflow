@@ -44,7 +44,7 @@ def setup_logging():
     logger.info(f"Logging configured to level: {log_level}")
 
 
-def create_aasx_asset(edc_manager: EdcManager, asset_id: str = None, asset_url: str = None, asset_description: str = None, asset_type: str = None) -> dict:
+def create_aasx_asset(edc_manager: EdcManager, asset_id: str = None, asset_url: str = None, asset_description: str = None, asset_type: str = None, file_type: str = None) -> dict:
     """
     Creates an AASX asset in the EDC using configuration from provider.env or CLI parameters.
     
@@ -54,6 +54,7 @@ def create_aasx_asset(edc_manager: EdcManager, asset_id: str = None, asset_url: 
         asset_url: Optional asset URL to override settings.ASSET_URL
         asset_description: Optional asset description to override settings.ASSET_DESCRIPTION
         asset_type: Optional asset type ("data", "model", or "service"), defaults to "data"
+        file_type: Optional file type/extension (e.g., "aasx", "json", "xml"), defaults to "aasx"
     
     Returns:
         Dictionary with asset creation results or error information.
@@ -63,6 +64,7 @@ def create_aasx_asset(edc_manager: EdcManager, asset_id: str = None, asset_url: 
     effective_asset_url = asset_url or settings.ASSET_URL
     effective_asset_description = asset_description or settings.ASSET_DESCRIPTION
     effective_asset_type = asset_type or "data"  # Default to "data" if not specified
+    effective_file_type = file_type or "aasx"  # Default to "aasx" if not specified
     
     # Validate asset type
     valid_asset_types = ["data", "model", "service"]
@@ -74,6 +76,7 @@ def create_aasx_asset(edc_manager: EdcManager, asset_id: str = None, asset_url: 
     logger.info(f"Asset URL: {effective_asset_url}")
     logger.info(f"Asset Description: {effective_asset_description}")
     logger.info(f"Asset Type: {effective_asset_type}")
+    logger.info(f"File Type: {effective_file_type}")
     
     # Temporarily override settings for the asset creation
     original_asset_id = settings.ASSET_ID
@@ -85,8 +88,8 @@ def create_aasx_asset(edc_manager: EdcManager, asset_id: str = None, asset_url: 
         settings.ASSET_URL = effective_asset_url
         settings.ASSET_DESCRIPTION = effective_asset_description
         
-        # Use the createAASXAsset method with asset type
-        asset_response = edc_manager.createAASXAsset(asset_type=effective_asset_type)
+        # Use the createAASXAsset method with asset type and file type
+        asset_response = edc_manager.createAASXAsset(asset_type=effective_asset_type, file_type=effective_file_type)
         
         if not asset_response:
             return {"error": "Failed to create asset", "asset_id": effective_asset_id}
@@ -175,7 +178,7 @@ def create_policies_and_contract(edc_manager: EdcManager, asset_id: str = None) 
     return results
 
 
-def main(env_file: str = None, asset_id: str = None, asset_url: str = None, asset_description: str = None, asset_type: str = None):
+def main(env_file: str = None, asset_id: str = None, asset_url: str = None, asset_description: str = None, asset_type: str = None, file_type: str = None):
     """
     Main entry point for AASX asset registration.
     
@@ -185,6 +188,7 @@ def main(env_file: str = None, asset_id: str = None, asset_url: str = None, asse
         asset_url: Optional asset URL to override settings.ASSET_URL
         asset_description: Optional asset description to override settings.ASSET_DESCRIPTION
         asset_type: Optional asset type ("data", "model", or "service"), defaults to "data"
+        file_type: Optional file type/extension (e.g., "aasx", "json", "xml"), defaults to "aasx"
     """
     
     # Handle environment file
@@ -217,6 +221,7 @@ def main(env_file: str = None, asset_id: str = None, asset_url: str = None, asse
     effective_asset_url = asset_url or settings.ASSET_URL
     effective_asset_description = asset_description or settings.ASSET_DESCRIPTION
     effective_asset_type = asset_type or "data"
+    effective_file_type = file_type or "aasx"
     
     # Validate required settings for AASX asset
     if not all([effective_asset_id, effective_asset_url, effective_asset_description]):
@@ -235,6 +240,10 @@ def main(env_file: str = None, asset_id: str = None, asset_url: str = None, asse
         logger.info(f"Using ASSET_TYPE from CLI: {effective_asset_type}")
     else:
         logger.info(f"Using default ASSET_TYPE: {effective_asset_type}")
+    if file_type:
+        logger.info(f"Using FILE_TYPE from CLI: {effective_file_type}")
+    else:
+        logger.info(f"Using default FILE_TYPE: {effective_file_type}")
     
     # Initialize EDC Manager
     try:
@@ -246,7 +255,7 @@ def main(env_file: str = None, asset_id: str = None, asset_url: str = None, asse
     
     # Create asset
     logger.info("=== Creating AASX Asset ===")
-    asset_result = create_aasx_asset(edc_manager, effective_asset_id, effective_asset_url, effective_asset_description, effective_asset_type)
+    asset_result = create_aasx_asset(edc_manager, effective_asset_id, effective_asset_url, effective_asset_description, effective_asset_type, effective_file_type)
     
     if asset_result.get("error"):
         logger.error(f"Asset creation failed: {asset_result}")
@@ -263,6 +272,7 @@ def main(env_file: str = None, asset_id: str = None, asset_url: str = None, asse
     logger.info(f"Asset ID: {effective_asset_id}")
     logger.info(f"Asset URL: {effective_asset_url}")
     logger.info(f"Asset Type: {effective_asset_type}")
+    logger.info(f"File Type: {effective_file_type}")
     
     return True
 
@@ -296,6 +306,12 @@ if __name__ == "__main__":
         default="data",
         help="Asset type: data, model, or service (default: data)"
     )
+    parser.add_argument(
+        "--file-type",
+        type=str,
+        default="aasx",
+        help="File type/extension for the asset (e.g., aasx, json, xml) (default: aasx)"
+    )
     
     args = parser.parse_args()
     success = main(
@@ -303,7 +319,8 @@ if __name__ == "__main__":
         asset_id=args.asset_id,
         asset_url=args.asset_url,
         asset_description=args.asset_description,
-        asset_type=args.asset_type
+        asset_type=args.asset_type,
+        file_type=args.file_type
     )
     
     if not success:
