@@ -216,13 +216,13 @@ The script will:
 4.  Poll for the EDR (Endpoint Data Reference).
 5.  If an EDR is obtained, it will attempt to use it to fetch the data.
 
-## End-to-End Test (`test_both.py`)
+## End-to-End Test (`test_asset_explore.py`)
 
-A script `test_both.py` is provided in the project root to demonstrate the full flow with multiple options:
+A script `test_asset_explore.py` is provided in the project root to demonstrate the full flow with multiple options:
 
 ```bash
 # Ensure your virtual environment is active and BOTH .env files are configured
-uv run test_both.py
+uv run test_asset_explore.py
 ```
 
 This script will:
