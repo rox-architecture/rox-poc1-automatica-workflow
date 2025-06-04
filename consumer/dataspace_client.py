@@ -521,7 +521,7 @@ class DataspaceClient:
                                 and edr_entry.get("assetId") != asset_id_for_filter
                             ):
                                 self.logger.debug(
-                                    f"  Skipping EDR for asset '{edr_entry.get("assetId")}' (target: '{asset_id_for_filter}')."
+                                    f"  Skipping EDR for asset '{edr_entry.get('assetId')}' (target: '{asset_id_for_filter}')."
                                 )
                                 continue
 
@@ -530,12 +530,12 @@ class DataspaceClient:
                                 success_time = time.time() - start_time
                                 self.logger.info(
                                     f"  SUCCESS: Found finalized EDR with transferProcessId: {transfer_process_id} "
-                                    f"for asset '{edr_entry.get("assetId", "N/A")}' after {success_time:.2f}s ({attempt} attempts)."
+                                    f"for asset '{edr_entry.get('assetId', 'N/A')}' after {success_time:.2f}s ({attempt} attempts)."
                                 )
                                 return transfer_process_id, edr_entry
                             else:
                                 self.logger.debug(
-                                    f"  EDR entry found for asset '{edr_entry.get("assetId", "N/A")}' but no transferProcessId yet."
+                                    f"  EDR entry found for asset '{edr_entry.get('assetId', 'N/A')}' but no transferProcessId yet."
                                 )
                     self.logger.info(
                         f"{operation_name} - No EDR with a transferProcessId found in this batch. Retrying..."
