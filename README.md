@@ -239,7 +239,7 @@ This is the best way to quickly test if your EDC setup and environment configura
 ## Key Files and Directory Structure
 
 ```
-
+```
 ## Funding
 
 This open-source project was developed within the *[ROX](https://www.project-rox.ai/en/)* project. 
